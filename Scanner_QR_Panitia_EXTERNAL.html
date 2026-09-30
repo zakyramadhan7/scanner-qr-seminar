@@ -168,9 +168,13 @@ async function mulaiScanner() {
           "<div style='margin-top:8px'>Mengembalikan ke panel panitia...</div>";
 
         setTimeout(function() {
-          window.top.location.href =
-  PANEL_URL + "#scan=" + encodeURIComponent(nomor);
-        }, 700);
+  var token = new URLSearchParams(window.location.search).get("token");
+
+  window.top.location.href =
+    PANEL_URL +
+    "#scan=" + encodeURIComponent(nomor) +
+    "&token=" + encodeURIComponent(token || "");
+}, 700);
       }
     );
 
