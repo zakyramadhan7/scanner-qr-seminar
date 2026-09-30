@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Scanner QR Panitia</title>
+  <script src="https://unpkg.com/@zxing/browser@0.2.1"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      color: #13264a;
+    }
+    .card {
+      max-width: 520px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.08);
+    }
+    h1 { margin: 0 0 8px; font-size: 24px; text-align: center; }
+    p { margin: 0 0 18px; text-align: center; color: #666; line-height: 1.5; }
+    #video {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      background: #111;
+      border-radius: 16px;
+      display: block;
+    }
+    .frame { position: relative; margin-bottom: 16px; overflow: hidden; border-radius: 16px; }
+    .frame::after {
+      content: "";
+      position: absolute;
+      left: 18%;
+      right: 18%;
+      top: 18%;
+      bottom: 18%;
+      border: 3px solid white;
+      border-radius: 14px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,.18);
+      pointer-events: none;
+    }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 15px;
+      background: #13264a;
+      color: white;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .status {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 12px;
+      background: #f3f5f8;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .success { background: #effaf4; border: 1px solid #9ed7b6; }
+    .error { background: #fff0f0; border: 1px solid #e3a4a4; color: #a00000; }
+    .number { font-size: 28px; font-weight: 900; margin-top: 6px; }
+  </style>
+</head>
+
+<body>
+<div class="card">
+  <h1>SCAN QR PESERTA</h1>
+  <p>Arahkan kamera belakang HP ke QR Code peserta. Scanner akan membaca QR secara otomatis.</p>
+
+  <div class="frame">
+    <video id="video" playsinline muted></video>
+  </div>
+
+  <button id="startButton" onclick="mulaiScanner()">MULAI SCAN</button>
+
+  <div id="status" class="status">
+    Tekan MULAI SCAN untuk membuka kamera.
+  </div>
+</div>
+
+<script>
+var PANEL_URL =
+  "https://script.google.com/macros/s/AKfycbxZMIvdWoVDquJI-QeyLxVy_mIZ9K99rEFWj_PH96WmCSekXTvE3OvDfi--1JWBDEeBLw/exec?admin=1";
+
+var codeReader = null;
+var controls = null;
+var sudahTerbaca = false;
+
+function ambilNomorDariQR(decodedText) {
+  var text = String(decodedText || "").trim();
+
+  try {
+    text = decodeURIComponent(text);
+  } catch (e) {}
+
+  var match = text.match(/[?&]id=(SPHN-\d{4})/i);
+  if (match && match[1]) return match[1].toUpperCase();
+
+  var nomorMatch = text.match(/\b(SPHN-\d{4})\b/i);
+  if (nomorMatch && nomorMatch[1]) return nomorMatch[1].toUpperCase();
+
+  return null;
+}
+
+async function mulaiScanner() {
+  var button = document.getElementById("startButton");
+  var status = document.getElementById("status");
+  var video = document.getElementById("video");
+
+  if (sudahTerbaca) return;
+
+  button.disabled = true;
+  button.innerHTML = "MEMBUKA KAMERA...";
+  status.className = "status";
+  status.innerHTML = "Meminta izin kamera...";
+
+  try {
+    codeReader = new ZXingBrowser.BrowserQRCodeReader();
+
+    controls = await codeReader.decodeFromConstraints(
+      {
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      },
+      video,
+      function(result, error) {
+        if (!result || sudahTerbaca) return;
+
+        var nomor = ambilNomorDariQR(result.getText());
+
+        if (!nomor) {
+          status.className = "status error";
+          status.innerHTML = "<b>QR TERBACA, TAPI BUKAN QR PESERTA.</b>";
+          return;
+        }
+
+        sudahTerbaca = true;
+
+        if (controls) {
+          try { controls.stop(); } catch (e) {}
+        }
+
+        var stream = video.srcObject;
+        if (stream) {
+          stream.getTracks().forEach(function(track) {
+            track.stop();
+          });
+        }
+
+        status.className = "status success";
+        status.innerHTML =
+          "<b>QR BERHASIL TERBACA</b>" +
+          "<div class='number'>" + nomor + "</div>" +
+          "<div style='margin-top:8px'>Mengembalikan ke panel panitia...</div>";
+
+        setTimeout(function() {
+          window.location.href =
+            PANEL_URL + "&scan=" + encodeURIComponent(nomor);
+        }, 700);
+      }
+    );
+
+    button.disabled = false;
+    button.innerHTML = "SCANNING...";
+    status.className = "status";
+    status.innerHTML = "Kamera aktif. Arahkan QR ke kotak putih.";
+
+  } catch (error) {
+    console.error(error);
+    button.disabled = false;
+    button.innerHTML = "MULAI SCAN";
+    status.className = "status error";
+    status.innerHTML =
+      "<b>KAMERA TIDAK DAPAT DIBUKA.</b><br><br>" +
+      "Pastikan halaman scanner dibuka melalui HTTPS dan izin kamera diberikan pada browser.";
+  }
+}
+</script>
+</body>
+</html>
