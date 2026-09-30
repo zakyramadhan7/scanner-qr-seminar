@@ -168,8 +168,8 @@ async function mulaiScanner() {
           "<div style='margin-top:8px'>Mengembalikan ke panel panitia...</div>";
 
         setTimeout(function() {
-          window.location.href =
-            PANEL_URL + "&scan=" + encodeURIComponent(nomor);
+          window.top.location.href =
+  PANEL_URL + "&scan=" + encodeURIComponent(nomor);
         }, 700);
       }
     );
